@@ -15,7 +15,7 @@ cli-manager.py 在CLI中使用
 <div>
   <button class="btn" data-clipboard-target="#code"></button>
   <pre><code id="code" class="language-bash">
-  ## GUI
+  # GUI
   git clone https://github.com/niylin/cloudflare-dns-manager.git
   cd cloudflare-dns-manager
   python3 main.py
@@ -26,7 +26,7 @@ cli-manager.py 在CLI中使用
 <div>
   <button class="btn" data-clipboard-target="#code"></button>
   <pre><code id="code" class="language-bash">
-  ## CLI
+  # CLI
   git clone https://github.com/niylin/cloudflare-dns-manager.git
   cd cloudflare-dns-manager
   python3 cli-manager.py
@@ -43,13 +43,13 @@ cli-manager.py 在CLI中使用
   </code></pre>
 </div>
 
-### Windows请手动创建
+### 其他系统请手动创建
 
 ## 卸载,删除文件夹和图标即可
 <div>
   <button class="btn" data-clipboard-target="#code"></button>
   <pre><code id="code" class="language-bash">
-## 删除自动创建的内容
+# 删除自动创建的内容
 rm $HOME/.local/share/applications/dns-manager.desktop
 rm $HOME/Desktop/dns-manager.desktop
 rm -r $HOME/.config/cfconfig
