@@ -8,7 +8,7 @@ import uuid
 
 # 定义配置文件路径
 CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.config', 'cfconfig')
-CONFIG_PATH = os.path.join(CONFIG_DIR, 'test_cfkey.json')
+CONFIG_PATH = os.path.join(CONFIG_DIR, 'cloudflare-dns-manager_hash.json')
 
 class Encryptor:
 
