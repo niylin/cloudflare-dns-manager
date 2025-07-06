@@ -8,10 +8,19 @@ cli-manager.py 在CLI中使用
 使用 用户名,MAC,固定前缀 组合生成密钥对配置信息进行简单加密
 存储在 $HOME/.config/cfconfig/cloudflare-dns-manager_hash.json
 
+## 安装依赖
+  
+<div>
+  <button class="btn" data-clipboard-target="#code"></button>
+  <pre><code id="code" class="language-bash">
+ pip install requests colorama  
+ sudo apt-get install python3-tk
+  </code></pre>
+</div>
 
 
-## 使用方法
-依赖:requests 
+## 使用方法  
+
 <div>
   <button class="btn" data-clipboard-target="#code"></button>
   <pre><code id="code" class="language-bash">
