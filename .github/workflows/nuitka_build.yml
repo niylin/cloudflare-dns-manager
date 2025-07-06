@@ -1,0 +1,79 @@
+name: Compile Cloudflare DNS Manager
+
+on:
+  push:
+    branches:
+      - main # 在推送到 main 分支时触发
+  pull_request:
+    branches:
+      - main # 在向 main 分支发起拉取请求时触发
+  workflow_dispatch: # 允许手动触发工作流
+
+jobs:
+  build_linux:
+    name: Build for Linux AMD64
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu 运行器
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x' # 推荐填写你项目实际使用的 Python 版本，例如 '3.9', '3.10', '3.11'
+
+    - name: Install Nuitka and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install nuitka
+        pip install -r requirements.txt # 从 requirements.txt 安装所有依赖
+
+    - name: Compile with Nuitka for Linux
+      run: |
+        # --standalone 创建独立可执行文件
+        # --onefile 将所有内容打包成一个文件
+        # --output-dir 指定输出目录
+        # main.py 是你的主程序入口文件
+        python -m nuitka --standalone --onefile --output-dir=./build_linux main.py
+
+    - name: Upload Linux compiled executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: cloudflare-dns-manager-linux-amd64 # 产物名称
+        # Nuitka --onefile 模式下，可执行文件通常在 output_dir/main.dist/ 目录下
+        path: ./build_linux/main.dist/*
+
+  build_windows:
+    name: Build for Windows AMD64
+    runs-on: windows-latest # 使用最新的 Windows 运行器
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x' # 推荐填写你项目实际使用的 Python 版本，例如 '3.9', '3.10', '3.11'
+
+    - name: Install Nuitka and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install nuitka
+        pip install -r requirements.txt # 从 requirements.txt 安装所有依赖
+
+    - name: Compile with Nuitka for Windows
+      run: |
+        # --standalone 创建独立可执行文件
+        # --onefile 将所有内容打包成一个文件
+        # --output-dir 指定输出目录
+        # main.py 是你的主程序入口文件
+        python -m nuitka --standalone --onefile --output-dir=./build_windows main.py
+
+    - name: Upload Windows compiled executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: cloudflare-dns-manager-windows-amd64 # 产物名称
+        # Nuitka --onefile 模式下，可执行文件通常在 output_dir/main.dist/ 目录下
+        path: ./build_windows/main.dist/*
