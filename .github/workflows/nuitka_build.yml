@@ -31,10 +31,8 @@ jobs:
 
     - name: Compile with Nuitka for Linux
       run: |
-        # 添加 --include-data-files=cloudflare-dns-manager.png=.
-        # 确保图片文件被包含并放置在可执行文件解压后的根目录
+        # Linux 命令行使用 `\` 作为续行符，当前保持不变
         python -m nuitka --standalone --onefile --output-dir=./build_linux main.py \
-          --no-interaction \
           --enable-plugin=tk-inter \
           --include-data-files=cloudflare-dns-manager.png=.
 
@@ -64,20 +62,13 @@ jobs:
         pip install -r requirements.txt
 
     - name: Compile with Nuitka for Windows
-      run: |
-        # 添加 --include-data-files=cloudflare-dns-manager.png=.
-        # 确保图片文件被包含并放置在可执行文件解压后的根目录
-        python -m nuitka --standalone --onefile --output-dir=./build_windows main.py \
-          --no-interaction \
-          --enable-plugin=tk-inter \
-          --include-data-files=cloudflare-dns-manager.png=.
+      run: python -m nuitka --standalone --onefile --output-dir=./build_windows main.py --no-interaction --enable-plugin=tk-inter --include-data-files=cloudflare-dns-manager.png=.
 
     - name: Upload Windows compiled executable
       uses: actions/upload-artifact@v4
       with:
         name: cloudflare-dns-manager-windows-amd64
         path: ./build_windows/main.dist/*
-
 
   release:
     name: Create GitHub Release
