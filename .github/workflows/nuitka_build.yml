@@ -62,8 +62,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Compile with Nuitka for Windows
-        run: python -m nuitka --standalone --onefile --output-dir=./build_windows main.py --enable-plugin=tk-inter --include-data-files=cloudflare-dns-manager.png=.
-        
+        run: python -m nuitka --standalone --onefile --output-dir=./build_windows main.py --enable-plugin=tk-inter --include-data-files=cloudflare-dns-manager.png=
+
       - name: Upload Windows compiled executable
         uses: actions/upload-artifact@v4
         with:
