@@ -31,7 +31,6 @@ jobs:
 
     - name: Compile with Nuitka for Linux
       run: |
-        # Linux 命令行使用 `\` 作为续行符，当前保持不变
         python -m nuitka --standalone --onefile --output-dir=./build_linux main.py \
           --enable-plugin=tk-inter \
           --include-data-files=cloudflare-dns-manager.png=.
@@ -42,59 +41,29 @@ jobs:
         name: cloudflare-dns-manager-linux-amd64
         path: ./build_linux/main.dist/*
 
-  build_windows:
-      name: Build for Windows AMD64
-      runs-on: windows-latest
-
-      steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Nuitka and dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install nuitka
-          pip install -r requirements.txt
-
-      - name: Compile with Nuitka for Windows
-        run: python -m nuitka --standalone --onefile --output-dir=./build_windows main.py --enable-plugin=tk-inter --include-data-files=cloudflare-dns-manager.png=
-
-      - name: Upload Windows compiled executable
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloudflare-dns-manager-windows-amd64
-          path: ./build_windows/main.dist/*
-
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build_linux, build_windows] # 确保在两个构建都成功后才运行此job
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # 只在推送到 main 分支时创建发布
+    needs: [build_linux]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-    - name: Download all compiled artifacts
+    - name: Download compiled artifact
       uses: actions/download-artifact@v4
       with:
-        path: ./artifacts # 下载到这个目录
+        path: ./artifacts
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
           ./artifacts/cloudflare-dns-manager-linux-amd64/*
-          ./artifacts/cloudflare-dns-manager-windows-amd64/*
         name: Release ${{ github.ref_name }}
-        tag_name: ${{ github.ref_name }} # 通常使用分支名或tag作为版本号
+        tag_name: ${{ github.ref_name }}
         body: |
           Cloudflare DNS Manager Release for ${{ github.ref_name }}
           
           This release includes:
           - Linux AMD64 executable
-          - Windows AMD64 executable
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub 提供的默认token
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
