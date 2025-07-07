@@ -84,6 +84,12 @@ class ConfigEditor(tk.Toplevel):
         new_state = "disabled" if color != "red" else "normal"
         self.save_button.config(state=new_state)
 
+    def is_active(self):
+        return self.winfo_exists()
+
+    def close_editor(self):
+        self.destroy()
+
 
 class RecordEditor(tk.Toplevel):
     # ... (此部分代码无变化)
@@ -123,14 +129,17 @@ class RecordEditor(tk.Toplevel):
         frame.columnconfigure(1, weight=1)
         self.name_entry.focus()
     def submit(self):
-        name = self.name_entry.get().strip() or "@"
+        record_type = self.type_combo.get()
         content = self.content_entry.get().strip()
-        if not content:
+        name = self.name_entry.get().strip() or "@"
+
+        if not content and record_type not in ['A', 'AAAA']:
             from tkinter import messagebox
             messagebox.showwarning("输入错误", "内容不能为空", parent=self)
             return
-        record_data = {"type": self.type_combo.get(), "name": name, "content": content, "proxied": self.proxy_var.get()}
-        self.controller.add_new_record(record_data)
+
+        record_data = {"type": record_type, "name": name, "content": content, "proxied": self.proxy_var.get()}
+        self.controller.add_or_update_record(record_data, self.record_id)
         self.destroy()
 
 class AppUI:
@@ -157,7 +166,7 @@ class AppUI:
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.domain_listbox.yview)
         scrollbar.pack(side="right", fill="y")
         self.domain_listbox.config(yscrollcommand=scrollbar.set)
-        self.domain_listbox.bind("<<ListboxSelect>>", self.controller.on_domain_select)
+        self.domain_listbox.bind("<<ListboxSelect>>", self._on_domain_select_event)
 
         self.change_account_button = ttk.Button(left_frame, text="更改账户", command=self.controller.prompt_for_config)
         self.change_account_button.grid(row=2, column=0, padx=5, pady=(0, 5), sticky="ew")
@@ -204,9 +213,27 @@ class AppUI:
         tree_scrollbar.grid(row=0, column=1, sticky="ns")
         self.records_tree.config(yscrollcommand=tree_scrollbar.set)
         
-        self.records_tree.bind("<<TreeviewSelect>>", self.controller.on_record_selection_change)
+        self.records_tree.bind("<<TreeviewSelect>>", self._on_record_selection_event)
 
         self._setup_styles()
+
+    def _on_domain_select_event(self, event):
+        selection_indices = self.domain_listbox.curselection()
+        if not selection_indices: return
+        self.controller.on_domain_selected(selection_indices[0])
+
+    def _on_record_selection_event(self, event):
+        selection_exists = bool(self.records_tree.selection())
+        self.controller.on_record_selection_change(selection_exists)
+
+    def get_selected_record_info(self):
+        selected_ids = self.records_tree.selection()
+        if not selected_ids: return None, None
+        record_id = selected_ids[0]
+        if record_id in ["empty", "error", "loading"]: return None, None
+        item = self.records_tree.item(record_id)
+        record_name = item['values'][1]
+        return record_id, record_name
 
     def _setup_styles(self):
         # ... (此部分代码无变化)
@@ -252,6 +279,11 @@ class AppUI:
              return
         for zone in zones:
             self.domain_listbox.insert(tk.END, zone['name'])
+
+    def clear_ui(self):
+        self.domain_listbox.delete(0, tk.END)
+        self.clear_dns_records_list()
+        self.set_record_buttons_state("disabled")
 
     def clear_dns_records_list(self):
         for item in self.records_tree.get_children():
