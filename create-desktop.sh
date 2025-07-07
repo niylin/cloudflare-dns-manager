@@ -22,7 +22,7 @@ Name[zh_CN]=cloudflare-dns-manager
 EOF
 
 chmod +x "$LOCAL_PATH"
-cp -f "$LOCAL_PATH" "$DESKTOP_DIR/dns-manager.desktop"
+ln -f "$LOCAL_PATH" "$DESKTOP_DIR/dns-manager.desktop"
 chmod +x "$DESKTOP_DIR/dns-manager.desktop"
 
 if ! grep -Fxq "alias cli-manager='python3 \"$SCRIPT_PATH\"'" ~/.bashrc; then
