@@ -264,10 +264,15 @@ class AppUI:
             foreground='#FFFFFF'
         )
 
-    def set_record_buttons_state(self, state):
+    def set_record_buttons_state(self, active):
+        state = "normal" if active else "disabled"
         self.add_button.config(state=state)
         self.refresh_records_button.config(state=state)
-        self.delete_button.config(state="disabled")
+        # 删除按钮的状态由 set_delete_button_state 单独控制
+
+    def set_delete_button_state(self, active):
+        state = "normal" if active else "disabled"
+        self.delete_button.config(state=state)
 
     def update_domain_list(self, zones, error):
         self.domain_listbox.delete(0, tk.END)

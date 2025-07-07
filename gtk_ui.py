@@ -126,7 +126,7 @@ class RecordEditor(Gtk.Dialog):
 
     def on_ok_clicked(self, widget):
         record_type = self.type_combo.get_active_text()
-        content = self.content_entry.get().strip()
+        content = self.content_entry.get_text().strip()
         
         # 仅当不是A或AAAA记录时，才强制内容不能为空
         if not content and record_type not in ['A', 'AAAA']:
