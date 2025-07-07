@@ -154,7 +154,8 @@ class AppUI(Gtk.ApplicationWindow):
         icon_path = '' # 初始化icon_path
         try:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            icon_path = os.path.join(script_dir, 'cloudflare-dns-manager.png')
+            # 图标文件在ui目录的父目录中
+            icon_path = os.path.join(os.path.dirname(script_dir), 'cloudflare-dns-manager.png')
             self.set_icon_from_file(icon_path)
         except Exception as e:
             print(f"错误：无法从路径 '{icon_path}' 加载GTK图标: {e}")

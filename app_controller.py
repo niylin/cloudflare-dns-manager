@@ -35,11 +35,11 @@ class AppController:
     def _load_ui_module(self):
         global UI_MODULE, MESSAGE_BOX, IS_GTK
         if self.ui_type == 'gtk':
-            import gtk_ui
+            from ui import gtk_ui
             UI_MODULE = gtk_ui
             IS_GTK = True
         else:
-            import app_ui
+            from ui import app_ui
             from tkinter import messagebox
             UI_MODULE = app_ui
             MESSAGE_BOX = messagebox
