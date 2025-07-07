@@ -5,7 +5,8 @@ import sys
 import time
 from colorama import Fore, Style, init
 from config_loader import load_config, save_config
-from cloudflare_api import CloudflareAPI
+from network.cloudflare_api import CloudflareAPI
+from network.get_ip_api import get_public_ip
 
 init(autoreset=True)
 
@@ -131,7 +132,7 @@ def add_record_flow(cf_api: CloudflareAPI, domain_name: str, zone_id: str) -> bo
 
     if content == "+++":
         ip_version = 'v6' if record_type == "AAAA" else 'v4'
-        public_ip, error = cf_api.get_public_ip(version=ip_version)
+        public_ip, error = get_public_ip(version=ip_version)
         if error:
             handle_error(error)
             return False

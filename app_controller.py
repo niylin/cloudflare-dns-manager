@@ -1,9 +1,9 @@
 # app_controller.py
 import threading
 import queue
-from cloudflare_api import CloudflareAPI
+from network.cloudflare_api import CloudflareAPI
 import config_loader
-from utils import get_public_ip
+from network.get_ip_api import get_public_ip
 
 # --- 全局变量，用于动态UI模块导入 ---
 UI_MODULE = None

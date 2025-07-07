@@ -55,12 +55,4 @@ class CloudflareAPI:
         """删除一条 DNS 记录"""
         return self._request("delete", f"zones/{zone_id}/dns_records/{record_id}")
         
-    def get_public_ip(self, version='v4'):
-        """获取公网IP地址"""
-        url = 'https://ipv4.ping0.cc' if version == 'v4' else 'https://ipv6.ping0.cc'
-        try:
-            response = requests.get(url, timeout=5)
-            response.raise_for_status()
-            return response.text.strip(), None
-        except requests.exceptions.RequestException as e:
-            return None, f"获取公网IP失败: {e}"
+    
