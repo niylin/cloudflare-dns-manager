@@ -19,10 +19,11 @@ Icon=$APP_DIR/cloudflare-dns-manager.png
 Comment=cloudflare-dns-manager
 GenericName=Internet Messenger
 Name[zh_CN]=cloudflare-dns-manager
+StartupWMClass=cloudflare-dns-manager
 EOF
 
 chmod +x "$LOCAL_PATH"
-ln -f "$LOCAL_PATH" "$DESKTOP_DIR/dns-manager.desktop"
+cp -f "$LOCAL_PATH" "$DESKTOP_DIR/dns-manager.desktop"
 chmod +x "$DESKTOP_DIR/dns-manager.desktop"
 
 if ! grep -Fxq "alias cli-manager='python3 \"$SCRIPT_PATH\"'" ~/.bashrc; then

@@ -12,7 +12,9 @@ def main():
     if args.ui == "gtk":
         import gi
         gi.require_version('Gtk', '3.0')
-        from gi.repository import Gtk
+        from gi.repository import Gtk, GLib
+        
+        GLib.set_prgname("cloudflare-dns-manager")
         
         app = Gtk.Application()
         controller = AppController(app, ui_type='gtk')
