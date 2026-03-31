@@ -4,16 +4,12 @@ import queue
 from network.cloudflare_api import CloudflareAPI
 import config_loader
 from network.get_ip_api import get_public_ip
-
-# --- 全局变量，用于动态UI模块导入 ---
-UI_MODULE = None
-MESSAGE_BOX = None
-IS_GTK = False
+from gi.repository import GLib
+from ui import gtk_ui
 
 class AppController:
-    def __init__(self, root, ui_type='tkinter'):
-        self.root = root
-        self.ui_type = ui_type
+    def __init__(self, app):
+        self.app = app
         self.api = None
         self.zones = []
         self.current_zone = None
@@ -21,51 +17,28 @@ class AppController:
         self.callback_queue = queue.Queue()
         self.ui = None
 
-        self._load_ui_module()
-
-        if IS_GTK:
-            # 对于GTK, root是Gtk.Application, UI在 'activate'信号时创建
-            self.root.connect('activate', self._activate_gtk_app)
-        else:
-            # 对于Tkinter, root是tk.Tk(), 立即创建UI
-            self.ui = UI_MODULE.AppUI(self.root, self)
-            self.initialize_app()
-            self.process_queue()
-
-    def _load_ui_module(self):
-        global UI_MODULE, MESSAGE_BOX, IS_GTK
-        if self.ui_type == 'gtk':
-            from ui import gtk_ui
-            UI_MODULE = gtk_ui
-            IS_GTK = True
-        else:
-            from ui import app_ui
-            from tkinter import messagebox
-            UI_MODULE = app_ui
-            MESSAGE_BOX = messagebox
+        # 对于GTK, app是Adw.Application, UI在 'activate'信号时创建
+        self.app.connect('activate', self._activate_gtk_app)
 
     def _activate_gtk_app(self, app):
         # GTK应用的激活回调
-        self.ui = UI_MODULE.AppUI(app, self)
+        self.ui = gtk_ui.AppUI(app, self)
         self.initialize_app()
         self.process_queue()
 
     def get_main_window(self):
         # 返回顶层窗口对象
-        return self.ui if IS_GTK else self.root
+        return self.ui
 
     def process_queue(self):
         try:
-            callback, kwargs = self.callback_queue.get_nowait()
-            callback(**kwargs)
+            while True:
+                callback, kwargs = self.callback_queue.get_nowait()
+                callback(**kwargs)
         except queue.Empty:
             pass
         finally:
-            if IS_GTK:
-                from gi.repository import GLib
-                GLib.timeout_add(100, self.process_queue)
-            else:
-                self.root.after(100, self.process_queue)
+            GLib.timeout_add(100, self.process_queue)
 
     def threaded_task(self, task_func, callback_func, callback_kwargs=None):
         # 在后台线程中执行任务
@@ -94,7 +67,7 @@ class AppController:
     def prompt_for_config(self):
         # 弹出API配置窗口
         self.ui.set_status_message("请输入您的Cloudflare API信息")
-        UI_MODULE.ConfigEditor(self.get_main_window(), self)
+        gtk_ui.ConfigEditor(self.get_main_window(), self)
 
     def test_and_save_config(self, email, key, editor_window):
         # 测试并保存API配置
@@ -157,7 +130,7 @@ class AppController:
     def open_add_record_window(self):
         # 打开添加记录的窗口
         if self.current_zone:
-            UI_MODULE.RecordEditor(self.get_main_window(), self)
+            gtk_ui.RecordEditor(self.get_main_window(), self)
 
     def add_or_update_record(self, record_data, record_id=None):
         # 添加或更新DNS记录
@@ -169,11 +142,11 @@ class AppController:
             ip_version = 'v6' if record_type == 'AAAA' else 'v4'
             self.ui.set_status_message(f"正在获取本机公网IP({ip_version})...")
             
-            def get_ip_task(): # 定义一个标准的内部函数
+            def get_ip_task():
                 return get_public_ip(version=ip_version)
 
             self.threaded_task(
-                task_func=get_ip_task, # 使用这个新函数
+                task_func=get_ip_task,
                 callback_func=self._on_public_ip_fetched,
                 callback_kwargs={"record_data": record_data, "record_id": record_id}
             )
@@ -196,7 +169,6 @@ class AppController:
         name = self.current_zone['name'] if record_data['name'] == '@' else f"{record_data['name']}.{self.current_zone['name']}"
         
         if record_id: # 更新逻辑 (未来实现)
-            # task_func = lambda: self.api.update_dns_record(...)
             pass
         else: # 添加逻辑
             task_func = lambda: self.api.add_dns_record(
@@ -228,15 +200,8 @@ class AppController:
 
     def show_message(self, title, message, msg_type='info'):
         # 显示信息/错误对话框
-        if IS_GTK:
-            UI_MODULE.show_gtk_message(self.get_main_window(), title, message, msg_type)
-        else:
-            if msg_type == 'error': MESSAGE_BOX.showerror(title, message)
-            else: MESSAGE_BOX.showinfo(title, message)
+        gtk_ui.show_gtk_message(self.get_main_window(), title, message, msg_type)
 
     def show_confirmation(self, title, message):
         # 显示确认对话框
-        if IS_GTK:
-            return UI_MODULE.show_gtk_message(self.get_main_window(), title, message, "question")
-        else:
-            return MESSAGE_BOX.askyesno(title, message)
+        return gtk_ui.show_gtk_message(self.get_main_window(), title, message, "question")

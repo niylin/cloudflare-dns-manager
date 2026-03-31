@@ -1,44 +1,34 @@
 # main.py
 import argparse
 import os
-from app_controller import AppController
+import sys
 
 def main():
     parser = argparse.ArgumentParser(description="Cloudflare DNS Manager")
-    parser.add_argument("--ui", choices=["tkinter", "gtk"], default="tkinter",
-                        help="Specify the UI toolkit to use (tkinter or gtk)")
+    parser.add_argument("--cli", action="store_true",
+                        help="Run in CLI mode")
     args = parser.parse_args()
 
-    if args.ui == "gtk":
+    if args.cli:
+        import subprocess
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cli_script = os.path.join(script_dir, "cli-manager.py")
+        sys.exit(subprocess.call([sys.executable, cli_script]))
+    else:
         import gi
-        gi.require_version('Gtk', '3.0')
-        from gi.repository import Gtk, GLib
-        
+        gi.require_version('Gtk', '4.0')
+        gi.require_version('Adw', '1')
+        from gi.repository import GLib, Adw
+        from app_controller import AppController
+
         GLib.set_prgname("cloudflare-dns-manager")
-        
-        app = Gtk.Application()
-        controller = AppController(app, ui_type='gtk')
-        app.run(None)
 
-    else: # Default to tkinter
-        import tkinter as tk
-        
-        root = tk.Tk()
-        root.title("Cloudflare DNS Manager")
+        app = Adw.Application(
+            application_id="org.niylin.cloudflare-dns-manager"
+        )
+        controller = AppController(app)
+        sys.exit(app.run(None))
 
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            icon_path = os.path.join(script_dir, 'cloudflare-dns-manager.png')
-            icon = tk.PhotoImage(file=icon_path)
-            root.iconphoto(True, icon)
-        except tk.TclError:
-            print(f"错误：无法从路径 '{icon_path}' 加载图标。")
-
-        root.geometry("1200x700")
-        root.config(bg='#2b2b2b')
-        
-        controller = AppController(root, ui_type='tkinter')
-        root.mainloop()
 
 if __name__ == "__main__":
     main()

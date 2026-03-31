@@ -1,70 +1,87 @@
 # gtk_ui.py
 import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk
-import os # 导入os模块
+import os
+import threading
+
+gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1')
+from gi.repository import Gtk, Gdk, Gio, Adw, GLib, Pango
 
 def show_gtk_message(parent, title, message, msg_type):
+    # GTK 4 dialogs are non-blocking. We use an iteration loop to emulate synchronous behavior.
+    result = {'response': None}
+
+    alert = Adw.AlertDialog.new(title, message)
+    
     if msg_type == 'question':
-        dialog = Gtk.MessageDialog(
-            transient_for=parent,
-            flags=0,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text=title,
-        )
-        dialog.format_secondary_text(message)
-        response = dialog.run()
-        dialog.destroy()
-        return response == Gtk.ResponseType.YES
+        alert.add_response("no", "取消")
+        alert.add_response("yes", "确认")
+        alert.set_default_response("no")
+        alert.set_close_response("no")
     else:
-        msg_type_map = {
-            'info': Gtk.MessageType.INFO,
-            'error': Gtk.MessageType.ERROR,
-        }
-        dialog = Gtk.MessageDialog(
-            transient_for=parent,
-            flags=0,
-            message_type=msg_type_map.get(msg_type, Gtk.MessageType.INFO),
-            buttons=Gtk.ButtonsType.OK,
-            text=title,
-        )
-        dialog.format_secondary_text(message)
-        dialog.run()
-        dialog.destroy()
+        alert.add_response("ok", "确认")
+        alert.set_default_response("ok")
+        alert.set_close_response("ok")
 
-class ConfigEditor(Gtk.Dialog):
+    def on_response(dialog, res, data):
+        result['response'] = dialog.choose_finish(res)
+
+    alert.choose(parent, None, on_response, None)
+
+    # Process events until we have a response
+    while result['response'] is None:
+        GLib.MainContext.default().iteration(True)
+
+    return result['response'] in ["yes", "ok"]
+
+class ConfigEditor(Adw.Window):
     def __init__(self, parent, controller):
-        super().__init__(title="Cloudflare API 配置", transient_for=parent, flags=0)
+        super().__init__(transient_for=parent, modal=True)
         self.controller = controller
-        self.add_button("取消", Gtk.ResponseType.CANCEL)
-        save_button = self.add_button("保存并连接", Gtk.ResponseType.OK)
-        save_button.connect("clicked", self.on_save_clicked)
-
-        self.set_modal(True)
-        self.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
+        self.set_title("Cloudflare API 配置")
+        self.set_default_size(400, -1)
         self.set_resizable(False)
-        self.set_border_width(10)
 
-        area = self.get_content_area()
-        grid = Gtk.Grid(column_spacing=10, row_spacing=10, margin=10)
-        area.add(grid)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_content(content)
 
-        grid.attach(Gtk.Label(label="Cloudflare Email:", xalign=0), 0, 0, 1, 1)
-        self.email_entry = Gtk.Entry(width_chars=45, hexpand=True)
-        grid.attach(self.email_entry, 0, 1, 1, 1)
+        header = Adw.HeaderBar()
+        content.append(header)
 
-        grid.attach(Gtk.Label(label="Global API Key:", xalign=0), 0, 2, 1, 1)
-        self.key_entry = Gtk.Entry(width_chars=45, visibility=False, hexpand=True)
-        grid.attach(self.key_entry, 0, 3, 1, 1)
+        page = Adw.PreferencesPage()
+        content.append(page)
 
-        self.status_label = Gtk.Label(hexpand=True, xalign=0)
-        grid.attach(self.status_label, 0, 4, 1, 1)
-        self.show_all()
+        group = Adw.PreferencesGroup()
+        page.add(group)
+
+        self.email_row = Adw.EntryRow(title="Cloudflare Email")
+        group.add(self.email_row)
+
+        self.key_row = Adw.PasswordEntryRow(title="Global API Key")
+        group.add(self.key_row)
+
+        self.status_label = Gtk.Label(margin_top=10, margin_bottom=10)
+        self.status_label.set_use_markup(True)
+        group.add(self.status_label)
+
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10, margin_start=20, margin_end=20, margin_bottom=20)
+        button_box.set_halign(Gtk.Align.CENTER)
+        content.append(button_box)
+
+        cancel_btn = Gtk.Button(label="取消")
+        cancel_btn.connect("clicked", lambda w: self.close())
+        button_box.append(cancel_btn)
+
+        save_btn = Gtk.Button(label="保存并连接")
+        save_btn.add_css_class("suggested-action")
+        save_btn.connect("clicked", self.on_save_clicked)
+        button_box.append(save_btn)
+
+        self.present()
 
     def on_save_clicked(self, widget):
-        email = self.email_entry.get_text().strip()
-        key = self.key_entry.get_text().strip()
+        email = self.email_row.get_text().strip()
+        key = self.key_row.get_text().strip()
         if not email or not key:
             self.show_status("邮箱和API Key均不能为空。", "red")
             return
@@ -77,170 +94,256 @@ class ConfigEditor(Gtk.Dialog):
         return self.get_visible()
 
     def close_editor(self):
-        self.destroy()
+        self.close()
 
-class RecordEditor(Gtk.Dialog):
+class RecordEditor(Adw.Window):
     def __init__(self, parent, controller, record=None):
-        super().__init__(title="添加/编辑 DNS 记录", transient_for=parent, flags=0)
+        super().__init__(transient_for=parent, modal=True)
         self.controller = controller
         self.record_id = record.get('id') if record else None
-        self.add_button("取消", Gtk.ResponseType.CANCEL)
-        ok_button = self.add_button("确认", Gtk.ResponseType.OK)
-        ok_button.connect("clicked", self.on_ok_clicked)
+        self.set_title("添加/编辑 DNS 记录")
+        self.set_default_size(450, -1)
 
-        self.set_modal(True)
-        self.set_position(Gtk.WindowPosition.CENTER_ON_PARENT)
-        self.set_border_width(10)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_content(content)
 
-        area = self.get_content_area()
-        grid = Gtk.Grid(column_spacing=10, row_spacing=10, margin=10)
-        area.add(grid)
+        header = Adw.HeaderBar()
+        content.append(header)
 
-        grid.attach(Gtk.Label(label="记录类型:", xalign=0), 0, 0, 1, 1)
-        self.type_combo = Gtk.ComboBoxText()
-        for t in ["A", "AAAA", "CNAME", "TXT", "NS"]:
-            self.type_combo.append_text(t)
-        grid.attach(self.type_combo, 1, 0, 1, 1)
+        page = Adw.PreferencesPage()
+        content.append(page)
 
-        grid.attach(Gtk.Label(label="主机名:", xalign=0), 0, 1, 1, 1)
-        self.name_entry = Gtk.Entry(hexpand=True)
-        grid.attach(self.name_entry, 1, 1, 1, 1)
+        group = Adw.PreferencesGroup()
+        page.add(group)
 
-        grid.attach(Gtk.Label(label="内容:", xalign=0), 0, 2, 1, 1)
-        self.content_entry = Gtk.Entry(hexpand=True)
-        grid.attach(self.content_entry, 1, 2, 1, 1)
+        self.type_row = Adw.ComboRow(title="记录类型")
+        self.type_model = Gtk.StringList.new(["A", "AAAA", "CNAME", "TXT", "NS"])
+        self.type_row.set_model(self.type_model)
+        group.add(self.type_row)
 
-        self.proxy_check = Gtk.CheckButton(label="开启Cloudflare代理 (CDN)")
-        grid.attach(self.proxy_check, 0, 3, 2, 1)
+        self.name_row = Adw.EntryRow(title="主机名")
+        group.add(self.name_row)
+
+        self.content_row = Adw.EntryRow(title="内容")
+        group.add(self.content_row)
+
+        self.proxy_row = Adw.SwitchRow(title="开启Cloudflare代理 (CDN)")
+        group.add(self.proxy_row)
+
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10, margin_start=20, margin_end=20, margin_bottom=20)
+        button_box.set_halign(Gtk.Align.CENTER)
+        content.append(button_box)
+
+        cancel_btn = Gtk.Button(label="取消")
+        cancel_btn.connect("clicked", lambda w: self.close())
+        button_box.append(cancel_btn)
+
+        ok_btn = Gtk.Button(label="确认")
+        ok_btn.add_css_class("suggested-action")
+        ok_btn.connect("clicked", self.on_ok_clicked)
+        button_box.append(ok_btn)
 
         if record:
-            self.type_combo.set_active_id(record.get('type', 'A'))
-            self.name_entry.set_text(record.get('name', ''))
-            self.content_entry.set_text(record.get('content', ''))
-            self.proxy_check.set_active(record.get('proxied', False))
+            # Set record values
+            type_idx = ["A", "AAAA", "CNAME", "TXT", "NS"].index(record.get('type', 'A'))
+            self.type_row.set_selected(type_idx)
+            self.name_row.set_text(record.get('name', ''))
+            self.content_row.set_text(record.get('content', ''))
+            self.proxy_row.set_active(record.get('proxied', False))
         else:
-            self.type_combo.set_active(0)
-            self.name_entry.set_text("@")
+            self.type_row.set_selected(0)
+            self.name_row.set_text("@")
 
-        self.show_all()
+        self.present()
 
     def on_ok_clicked(self, widget):
-        record_type = self.type_combo.get_active_text()
-        content = self.content_entry.get_text().strip()
+        record_type = self.type_model.get_string(self.type_row.get_selected())
+        content = self.content_row.get_text().strip()
         
-        # 仅当不是A或AAAA记录时，才强制内容不能为空
         if not content and record_type not in ['A', 'AAAA']:
             show_gtk_message(self, "输入错误", "内容不能为空", "error")
             return
 
         record_data = {
             "type": record_type,
-            "name": self.name_entry.get_text().strip() or "@",
+            "name": self.name_row.get_text().strip() or "@",
             "content": content,
-            "proxied": self.proxy_check.get_active()
+            "proxied": self.proxy_row.get_active()
         }
         self.controller.add_or_update_record(record_data, self.record_id)
-        self.destroy()
+        self.close()
 
-class AppUI(Gtk.ApplicationWindow):
+class AppUI(Adw.ApplicationWindow):
     def __init__(self, application, controller):
         super().__init__(application=application)
         self.controller = controller
         self.set_title("Cloudflare DNS Manager")
         self.set_default_size(1200, 700)
-        self.set_border_width(10)
 
-        # 设置窗口图标
-        icon_path = '' # 初始化icon_path
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            # 图标文件在ui目录的父目录中
-            icon_path = os.path.join(os.path.dirname(script_dir), 'cloudflare-dns-manager.png')
-            self.set_icon_from_file(icon_path)
-        except Exception as e:
-            print(f"错误：无法从路径 '{icon_path}' 加载GTK图标: {e}")
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_content(main_box)
 
+        # Header Bar
+        header = Adw.HeaderBar()
+        main_box.append(header)
+
+        # Main Paned
         main_pane = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True)
-        self.add(main_pane)
+        main_box.append(main_pane)
 
-        # --- Left Pane ---
-        left_grid = Gtk.Grid(orientation=Gtk.Orientation.VERTICAL, row_spacing=5)
-        main_pane.add1(left_grid)
+        # --- Left Pane (Domains) ---
+        left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5, margin_start=10, margin_end=10, margin_top=10, margin_bottom=10)
+        main_pane.set_start_child(left_box)
 
         self.refresh_domains_button = Gtk.Button(label="刷新域名列表")
         self.refresh_domains_button.connect("clicked", lambda w: self.controller.load_domains())
-        left_grid.attach(self.refresh_domains_button, 0, 0, 1, 1)
+        left_box.append(self.refresh_domains_button)
 
         scrolled_window = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scrolled_window.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        left_grid.attach(scrolled_window, 0, 1, 1, 1)
+        left_box.append(scrolled_window)
 
         self.domain_listbox = Gtk.ListBox()
+        self.domain_listbox.add_css_class("navigation-sidebar")
         self.domain_listbox.connect("row-selected", self.on_domain_row_selected)
-        scrolled_window.add(self.domain_listbox)
+        scrolled_window.set_child(self.domain_listbox)
+
+        # Context menu for domains
+        self.domain_popover = Gtk.PopoverMenu.new_from_model(None)
+        self.domain_popover.set_parent(self.domain_listbox)
+        self.domain_popover.set_has_arrow(True)
+        domain_menu = Gio.Menu.new()
+        domain_menu.append("复制域名", "win.copy_domain")
+        self.domain_popover.set_menu_model(domain_menu)
+
+        domain_gesture = Gtk.GestureClick.new()
+        domain_gesture.set_button(Gdk.BUTTON_SECONDARY)
+        domain_gesture.connect("pressed", self.on_domain_right_click)
+        self.domain_listbox.add_controller(domain_gesture)
 
         self.change_account_button = Gtk.Button(label="更改账户")
         self.change_account_button.connect("clicked", lambda w: self.controller.prompt_for_config())
-        left_grid.attach(self.change_account_button, 0, 2, 1, 1)
+        left_box.append(self.change_account_button)
 
-        # --- Right Pane ---
-        right_grid = Gtk.Grid(orientation=Gtk.Orientation.VERTICAL, row_spacing=5)
-        main_pane.add2(right_grid)
+        # --- Right Pane (Records) ---
+        right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5, margin_start=10, margin_end=10, margin_top=10, margin_bottom=10)
+        main_pane.set_end_child(right_box)
 
-        top_bar = Gtk.Grid(column_spacing=10)
-        right_grid.attach(top_bar, 0, 0, 1, 1)
+        top_bar = Gtk.CenterBox()
+        right_box.append(top_bar)
 
-        self.status_label = Gtk.Label(label="请从左侧选择一个域名", hexpand=True, xalign=0)
-        top_bar.attach(self.status_label, 0, 0, 1, 1)
+        self.status_label = Gtk.Label(label="请从左侧选择一个域名", xalign=0)
+        self.status_label.add_css_class("heading")
+        top_bar.set_start_widget(self.status_label)
 
         button_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        top_bar.attach(button_container, 1, 0, 1, 1)
+        top_bar.set_end_widget(button_container)
 
-        self.add_button = Gtk.Button.new_with_label("添加新记录")
+        self.add_button = Gtk.Button(label="添加新记录")
         self.add_button.connect("clicked", lambda w: self.controller.open_add_record_window())
-        button_container.pack_start(self.add_button, False, False, 0)
+        button_container.append(self.add_button)
 
-        self.refresh_records_button = Gtk.Button.new_with_label("刷新记录")
+        self.refresh_records_button = Gtk.Button(label="刷新记录")
         self.refresh_records_button.connect("clicked", lambda w: self.controller.refresh_current_records())
-        button_container.pack_start(self.refresh_records_button, False, False, 0)
+        button_container.append(self.refresh_records_button)
 
-        self.delete_button = Gtk.Button.new_with_label("删除选中记录")
-        self.delete_button.get_style_context().add_class("destructive-action")
+        self.delete_button = Gtk.Button(label="删除选中记录")
+        self.delete_button.add_css_class("destructive-action")
         self.delete_button.connect("clicked", lambda w: self.controller.delete_selected_record())
-        button_container.pack_start(self.delete_button, False, False, 0)
+        button_container.append(self.delete_button)
 
         scrolled_window_records = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
-        scrolled_window_records.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        right_grid.attach(scrolled_window_records, 0, 1, 1, 1)
+        scrolled_window_records.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        right_box.append(scrolled_window_records)
 
         self.records_store = Gtk.ListStore(str, str, str, str, str) # id, type, name, content, proxied
         self.records_tree = Gtk.TreeView(model=self.records_store)
         self.records_tree.get_selection().connect("changed", self.on_tree_selection_changed)
-        scrolled_window_records.add(self.records_tree)
+        scrolled_window_records.set_child(self.records_tree)
 
-        columns = [("类型", 80), ("名称", 250), ("内容", 400), ("代理", 60)]
-        for i, (title, width) in enumerate(columns):
+        # Context menu for records
+        self.records_popover = Gtk.PopoverMenu.new_from_model(None)
+        self.records_popover.set_parent(self.records_tree)
+        self.records_popover.set_has_arrow(True)
+        records_menu = Gio.Menu.new()
+        records_menu.append("复制名称", "win.copy_name")
+        records_menu.append("复制内容", "win.copy_content")
+        self.records_popover.set_menu_model(records_menu)
+
+        records_gesture = Gtk.GestureClick.new()
+        records_gesture.set_button(Gdk.BUTTON_SECONDARY)
+        records_gesture.connect("pressed", self.on_records_right_click)
+        self.records_tree.add_controller(records_gesture)
+
+        # Actions for copying
+        self.add_action_with_callback("copy_domain", self.on_copy_domain)
+        self.add_action_with_callback("copy_name", self.on_copy_name)
+        self.add_action_with_callback("copy_content", self.on_copy_content)
+
+        columns = [("类型", 60, False), ("名称", 150, True), ("内容", 200, True), ("代理", 60, False)]
+        for i, (title, width, expand) in enumerate(columns):
             renderer = Gtk.CellRendererText()
+            renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
             column = Gtk.TreeViewColumn(title, renderer, text=i + 1)
             column.set_resizable(True)
+            column.set_expand(expand)
             column.set_min_width(width)
             column.set_sort_column_id(i + 1)
             self.records_tree.append_column(column)
 
         self.clear_ui()
-        self.show_all()
+        self.present()
 
-    def _setup_styles(self):
-        css_provider = Gtk.CssProvider()
-        css = b"""...""" # CSS from previous step
-        css_provider.load_from_data(css)
-        screen = Gdk.Screen.get_default()
-        style_context = Gtk.StyleContext()
-        style_context.add_provider_for_screen(screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    def add_action_with_callback(self, name, callback):
+        action = Gio.SimpleAction.new(name, None)
+        action.connect("activate", callback)
+        self.add_action(action)
+
+    def on_domain_right_click(self, gesture, n_press, x, y):
+        row = self.domain_listbox.get_row_at_y(int(y))
+        if row:
+            self.domain_listbox.select_row(row)
+            rect = Gdk.Rectangle()
+            rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+            self.domain_popover.set_pointing_to(rect)
+            self.domain_popover.popup()
+
+    def on_records_right_click(self, gesture, n_press, x, y):
+        path_info = self.records_tree.get_path_at_pos(int(x), int(y))
+        if path_info:
+            path, col, cell_x, cell_y = path_info
+            self.records_tree.get_selection().select_path(path)
+            rect = Gdk.Rectangle()
+            rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+            self.records_popover.set_pointing_to(rect)
+            self.records_popover.popup()
+
+    def on_copy_domain(self, action, param):
+        row = self.domain_listbox.get_selected_row()
+        if row:
+            # AdwActionRow title
+            self.get_display().get_clipboard().set(row.get_title())
+
+    def on_copy_name(self, action, param):
+        _, record_name = self.get_selected_record_info()
+        if record_name:
+            self.get_display().get_clipboard().set(record_name)
+
+    def on_copy_content(self, action, param):
+        model, treeiter = self.records_tree.get_selection().get_selected()
+        if treeiter:
+            content = model[treeiter][3]
+            self.get_display().get_clipboard().set(content)
 
     def clear_ui(self):
-        for child in self.domain_listbox.get_children():
-            self.domain_listbox.remove(child)
+        # Only remove ListBoxRow children to avoid removing popovers or other internal widgets
+        child = self.domain_listbox.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            if isinstance(child, Gtk.ListBoxRow):
+                self.domain_listbox.remove(child)
+            child = next_child
+            
         self.records_store.clear()
         self.set_record_buttons_state(False)
 
@@ -255,23 +358,27 @@ class AppUI(Gtk.ApplicationWindow):
     def update_domain_list(self, zones, error):
         self.clear_ui()
         if error:
-            row = Gtk.ListBoxRow()
-            row.add(Gtk.Label(label=f"加载失败: {error}"))
-            self.domain_listbox.add(row)
+            row = Adw.ActionRow(title=f"加载失败: {error}")
+            self.domain_listbox.append(row)
         elif not zones:
-            row = Gtk.ListBoxRow()
-            row.add(Gtk.Label(label="未找到任何域名"))
-            self.domain_listbox.add(row)
+            row = Adw.ActionRow(title="未找到任何域名")
+            self.domain_listbox.append(row)
         else:
             for zone in zones:
-                row = Gtk.ListBoxRow()
-                row.add(Gtk.Label(label=zone['name']))
-                self.domain_listbox.add(row)
-        self.domain_listbox.show_all()
+                row = Adw.ActionRow(title=zone['name'])
+                self.domain_listbox.append(row)
 
     def on_domain_row_selected(self, listbox, row):
         if row:
-            self.controller.on_domain_selected(row.get_index())
+            # We need to find the index of the row
+            idx = 0
+            iter_row = listbox.get_first_child()
+            while iter_row:
+                if iter_row == row:
+                    self.controller.on_domain_selected(idx)
+                    break
+                iter_row = iter_row.get_next_sibling()
+                idx += 1
 
     def show_loading_records(self):
         self.records_store.clear()
