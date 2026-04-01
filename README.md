@@ -5,8 +5,9 @@
 main.py 主入口,一个简单的GUI界面
 cli-manager.py 在CLI中使用,或者通过main.py --cli    
 
-![](https://github.com/niylin/cloudflare-dns-manager/blob/main/123.png)
-
+![](https://github.com/niylin/cloudflare-dns-manager/blob/main/img/123.png)
+![](https://github.com/niylin/cloudflare-dns-manager/blob/main/img/223.png)
+![](https://github.com/niylin/cloudflare-dns-manager/blob/main/img/224.png)
 ## 密钥存储
 使用 用户名,MAC,固定前缀 组合生成密钥对配置信息进行简单加密
 存储在 $HOME/.config/cfconfig/cloudflare-dns-manager_hash.json
