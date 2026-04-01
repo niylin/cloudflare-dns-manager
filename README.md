@@ -3,7 +3,8 @@
 
 
 main.py 主入口,一个简单的GUI界面
-cli-manager.py 在CLI中使用,或者通过main.py --cli
+cli-manager.py 在CLI中使用,或者通过main.py --cli    
+
 !(https://github.com/niylin/cloudflare-dns-manager/blob/main/123.png)
 
 ## 密钥存储
